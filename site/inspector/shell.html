@@ -1,0 +1,167 @@
+
+<html>
+
+<head>
+<title>Inspector shell</title>
+
+<link type="text/css" href="lib/ui/css/ui-lightness/jquery-ui-1.8.16.custom.css" rel="stylesheet" />
+<script src="lib/require.js"></script>
+<script src="lib/socket.io.js"></script>
+<script src="lib/jquery-1.7.min.js"></script>
+<script src="lib/ui/js/jquery-ui-1.8.16.custom.min.js"></script>
+
+<style>
+
+</style>
+
+<body>
+
+<h2>Processes</h2>
+
+<div id="processes">
+</div>
+
+<div id="file_dialog">
+    <h2>Select file to run</h2>
+    <label for="filter">Search:</label><input type="text" id="filter" onkeyup="search();" />
+    <div id="files"></div>
+</div>
+
+<div id="arg_dialog" style="display: none;">
+    <h2>Launch process</h2>
+    <div>Process: <span id="process_name"></span></div>
+    <div>Arg 1: <input type="text" id="arg_1" /></div>
+    <div>Arg 2: <input type="text" id="arg_2" /></div>
+    <div>Arg 3: <input type="text" id="arg_3" /></div>
+    <div>Arg 4: <input type="text" id="arg_4" /></div>
+    <button id="launch_button" onclick="launch();">Launch</button>
+</div>
+
+<script>
+
+/*
+$("#arg_dialog").dialog({
+    autoOpen: false, 
+    close: function () { $("#launch_button").button("enable"); $("#inspector_link").html("Not running"); },
+});
+*/
+
+// $(":button").button();
+
+function search() {
+    printFiles();
+}
+
+function launch() {
+    var fname = $("#process_name").text();
+    var args = [];
+    for (var i = 1; i <= 4; i++) {
+        var str = $("#arg_" + i).val();
+        if (str.length > 0) args.push(str);
+    }
+    var id = Math.floor(Math.random()*1000000);
+    // $("#launch_button").button("disable");
+    // Make link, also opne new window
+    var link = "devtools.html?nodeDebug=1&port=" + id;
+    window.open(link, "_blank");
+    $("#inspector_link").html('<a href="' + link + '" target="_blank">Go to inspector</a>');
+    sock.emit("launch", {id: id, main: fname, args: args}, function (obj) {
+        updateProcessList();
+        // $("#launch_button").button("disable");
+        // $("#arg_dialog").dialog("close");
+    });
+}
+
+function startDialog(fn) {
+    $("#arg_dialog").show();
+    $("#file_dialog").hide();
+    $("#process_name").html(fn);
+}
+
+var sock = io.connect();
+
+var pwd = "./";
+var files = [];
+
+/*
+function pressed(i) {
+    var elem = files[i];
+    if (elem.is_dir) updateDir(pwd + elem.name + "/");
+    else document.location.hash = "#" + pwd.substr(2) + elem.name;
+}
+*/
+
+var util = require("./lib/utils");
+
+function printFile(f, i) {
+    if (!f.is_dir && !f.name.match(/\.js$/)) return "";
+    var filter = $("#filter").val();
+    if (!f.name.match(util.validRegex("^" + filter))) return "";
+    var name = f.name + (f.is_dir ? "/" : "");
+    return '<div><a href="#' + pwd.substr(2) + name + '">' + name + '</a></div>';
+}
+
+function printFiles() {
+    $("#files").html(files.map(printFile).join("\n"))
+}
+
+function cmp_file(a, b) {
+    if (a.is_dir && !b.is_dir) return -1;
+    if (!a.is_dir && b.is_dir) return 1;
+    return a.name == b.name ? 0 : (a.name < b.name ? -1 : 1);
+} 
+
+function updateDir(dname) {
+    $("#filter").val("");
+    $("#filter").focus();
+    $("#arg_dialog").hide();
+    $("#file_dialog").show();
+    sock.emit("list_directory", {dir:dname}, function (lst) {
+        pwd = dname;
+        files = lst.sort(cmp_file);
+        printFiles();
+        document.location.hash = "#" + pwd.substr(2);
+    });
+}
+
+function printLink(elem) {
+    var link = "devtools.html?nodeDebug=1&port=" + elem.id;
+    var kill = elem.status == "connected" ? '<button onclick="kill(' + elem.id + ');">Kill</button>': "";
+    return '<div><a href="' + link + '" target="_blank">Process ' + elem.name + ' (' + elem.id + ')</a>: ' + elem.status + kill + '</div>';
+}
+
+function kill(pid) {
+    sock.emit("kill_process", {id:pid});
+}
+
+function updateProcessList() {
+    sock.emit("list_processes", {}, function (lst) {
+        $("#processes").html(lst.map(printLink).join("\n"));
+    });
+}
+
+sock.on("list_processes", function (lst) {
+    $("#processes").html(lst.map(printLink).join("\n"));
+});
+
+sock.on("connect", function () {
+    changePage();
+    updateProcessList();
+    onhashchange = changePage;
+});
+
+// onhashchange: either go to directory, or get args for file
+function changePage() {
+    // console.log(document.location.hash);
+    var str = document.location.hash.substr(1);
+    str = "./" + str;
+    if (str.match(/\/$/)) updateDir(str);
+    else startDialog(str.substr(2));
+}
+
+</script>
+
+</body>
+
+</html>
+
