@@ -1,0 +1,8 @@
+
+node site/debug_proxy.js
+
+then with Chrome (perhaps works with Safari)
+http://localhost:4040/shell.html, and start processes.
+
+The protocol seems to have changed quite much, so I've written
+everything from scratch.

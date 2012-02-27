@@ -7,12 +7,34 @@ boxForAnchorAtStart(sel, ran);
 
 */
 
+var util = require("../lib/utils");
+
+function f(name) { return function (x) { return x[name]; }; }
+
+function getSourceIds() {
+    // Need to get file ids
+    // Get all sources...
+    var ids = [];
+    WebInspector.panels.scripts._presentationModel._rawSourceCodes.forEach(function (el) { ids = ids.concat(el._scripts); });
+    return ids;
+}
+
+function getSources(lst, cont) {
+    var res = [];
+    function loaded(error, str, sc) {
+        res.push({file: error ? "" : str, filename: sc.sourceURL});
+        console.log(sc.sourceURL);
+        if (res.length == lst.length) cont(res);
+    }
+    lst.forEach(function (sc) { DebuggerAgent.getScriptSource(sc.scriptId, function (err,str) { loaded(err,str,sc); }); });
+}
+
+var system = new util.Handler("../lib/local-complete.js");
+
+/*
 function call_server(sname, obj, cont) {
     var str = encodeURIComponent(JSON.stringify(obj));
     var url = "http://192.168.0.7:3000/" + sname + "?command=" + str;
-    /*
-    $.get(url, function (x) { if (cont) cont(x); }, "json");
-    */
     var http_request = new XMLHttpRequest();
 	http_request.open("GET", url, true );
 	http_request.onreadystatechange = function () {
@@ -23,12 +45,21 @@ function call_server(sname, obj, cont) {
     http_request.overrideMimeType("application/json");
 	http_request.send(null);
 }
+*/
+
+var initialized = false;
 
 function getCompletions(word, cont) {
-    call_server("complete", {type:"cap", string:word}, function (obj) {
+    if (!initialized) {
+        initialized = true;
+        getSources(getSourceIds(), function (lst) {
+            lst.forEach(function (el) { system.handle({type:"save", file:el.file, filename: el.filename}); });
+        });
+    }
+    system.handle({type:"complete", string:word}, function (obj) {
         var lst = [];
         if (obj.current) lst.push(obj.current.str);
-        if (obj.lst) obj.lst.forEach(function (x) { lst.push(x.string); })
+        if (obj.lst) obj.lst.forEach(function (x) { lst.push(x.string); });
         cont(lst);
     });
 }
