@@ -286,7 +286,7 @@ var Debugger = {
     },
     getScriptSource: function (x, cont) {
         conn.command("scripts", {includeSource: true, ids:[parseInt(x.scriptId)]}, function (resp) {
-            cont({result:{scriptSource:resp.body[0].source}});
+            cont({result:{scriptSource:resp.body && resp.body.length > 0 ? resp.body[0].source : ""}});
         });
     },
     pause: function (x, cont) {

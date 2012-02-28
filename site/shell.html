@@ -22,7 +22,7 @@
 <div id="file_dialog">
     <h2>Select file to run</h2>
     <label for="filter">Search:</label><input type="text" id="filter" onkeyup="search();" />
-    <button>New file</button><button>New directory</button>
+    <button onclick="newFile();">New file</button><button onclick="newDirectory();">New directory</button>
     <div id="files"></div>
 </div>
 
@@ -114,6 +114,18 @@ function cmp_file(a, b) {
     if (!a.is_dir && b.is_dir) return 1;
     return a.name == b.name ? 0 : (a.name < b.name ? -1 : 1);
 } 
+
+function newFile() {
+    sock.emit("new_file", {filename:pwd+$("#filter").val()}, function () {
+        updateDir(pwd);
+    });
+}
+
+function newDirectory() {
+    sock.emit("new_directory", {filename:pwd+$("#filter").val()}, function () {
+        updateDir(pwd);
+    });
+}
 
 function updateDir(dname) {
     $("#filter").val("");

@@ -58,7 +58,7 @@ function subDirs(str, cont) {
 function listDirectory(dir, cont) {
     console.log("Listing...");
     fs.readdir(dir, function (err, lst) {
-        if (!lst) {
+        if (err || !lst) {
             cont([]);
             return;
         }
@@ -66,7 +66,9 @@ function listDirectory(dir, cont) {
         function handle(i) {
             fs.stat(dir + lst[i], function (err,stat) {
                 console.log(err);
-                var obj = {
+                var obj;
+                if (err) obj = {name: lst[i], is_dir: false};
+                else obj = {
                     // name: lst[i].substr(dir.length),
                     name: lst[i],
                     is_dir: stat && stat.isDirectory(),
@@ -76,7 +78,8 @@ function listDirectory(dir, cont) {
                 else handle(i+1);
             });
         }
-        handle(0);
+        if (res.length == lst.length) cont(res);
+        else handle(0);
     });
 }
 
@@ -101,21 +104,21 @@ io.sockets.on("connection", function (socket) {
     console.log("Client connected");
     sockets.push(socket);
     socket.on("list_directory", function (obj, cont) {
+        console.log("Listing directory " + obj.dir);
         listDirectory(root_dir + obj.dir, cont);
     });
     socket.on("list_processes", function (obj, cont) {
-        console.log("Listing processes");
         cont(processList());
     });
     socket.on("save_file", function (obj) {
         var save_source = "\n" + obj.file.split("\n").slice(1,-1).join("\n") + "\n";
         fs.writeFile(obj.filename, save_source);
     });
-    socket.on("new_file", function (obj) {
-        fs.writeFile(obj.filename, "");
+    socket.on("new_file", function (obj, cont) {
+        fs.writeFile(root_dir + obj.filename, "", function () { cont(); });
     });
-    socket.on("new_directory", function (obj) {
-        fs.mkdir(obj.filename);
+    socket.on("new_directory", function (obj, cont) {
+        fs.mkdir(root_dir + obj.filename, 0777, function () { cont(); });
     });
     socket.on("kill_process", function (obj) {
         children[obj.id].cp.kill();
