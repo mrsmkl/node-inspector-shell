@@ -6,6 +6,8 @@ exports.require = require;
 global.require = require;
 this.require = require;
 
+// Foobar bar
+
 var k = 0, j = 0;
 
 var server = net.createServer(function (c) {
@@ -19,10 +21,4 @@ var server = net.createServer(function (c) {
 });
 
 server.listen(7701);
-
-
-
-
-
-
 

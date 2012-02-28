@@ -270,6 +270,12 @@ WebInspector.DebuggerModel.prototype = {
      */
     setScriptSource: function(scriptId, newSource, callback)
     {
+        if (WebInspector.experimentsSettings.saveToServer.isEnabled()) {
+            var sc = this.scriptForSourceID(scriptId);
+            if (sc) {
+                WebInspector.node_socket.emit("save_file", {filename: sc.sourceURL, file: newSource});
+            }
+        }
         this._scripts[scriptId].editSource(newSource, this._didEditScriptSource.bind(this, scriptId, newSource, callback));
     },
 

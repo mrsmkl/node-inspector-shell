@@ -107,11 +107,21 @@ io.sockets.on("connection", function (socket) {
         console.log("Listing processes");
         cont(processList());
     });
+    socket.on("save_file", function (obj) {
+        var save_source = "\n" + obj.file.split("\n").slice(1,-1).join("\n") + "\n";
+        fs.writeFile(obj.filename, save_source);
+    });
+    socket.on("new_file", function (obj) {
+        fs.writeFile(obj.filename, "");
+    });
+    socket.on("new_directory", function (obj) {
+        fs.mkdir(obj.filename);
+    });
     socket.on("kill_process", function (obj) {
         children[obj.id].cp.kill();
     });
     socket.on("launch", function (obj, cont) {
-        var child = session.make([root_dir + obj.main].concat(obj.args));
+        var child = session.make([root_dir + obj.main].concat(obj.args), {paused: obj.paused});
         children[obj.id] = child;
         child.main = obj.main;
         child.status = "unconnected";

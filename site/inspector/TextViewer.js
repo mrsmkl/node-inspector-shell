@@ -1246,8 +1246,10 @@ WebInspector.TextEditorMainPanel.prototype = {
         var textEditorIndent = WebInspector.settings.textEditorIndent.get();
         var indent = WebInspector.TextEditorModel.endsWithBracketRegex.test(linePrefix) ? currentIndent + textEditorIndent : currentIndent;
 
-        var doc_str = this._textModel.copyRange(new WebInspector.TextRange(0, 0, range.endLine, range.endColumn));
-        var prefix = enterPrefix(doc_str);
+        if (WebInspector.experimentsSettings.modifiedEditor.isEnabled()) {
+            var doc_str = this._textModel.copyRange(new WebInspector.TextRange(0, 0, range.endLine, range.endColumn));
+            var prefix = enterPrefix(doc_str);
+        }
 
         if (!indent && !prefix)
             return false;
@@ -1902,20 +1904,22 @@ WebInspector.TextEditorMainPanel.prototype = {
         // The cursor should be at the end of range...
         var newString = lines.join("\n");
         var putCursorToEnd = false;
-        if (this._textModel.copyRange(oldRange).length == 0 && newString.length == 1) {
-            // Find out what is on the line...
-            var line_range = new WebInspector.TextRange(oldRange.endLine, 0, oldRange.endLine, oldRange.endColumn);
-            var start_range = new WebInspector.TextRange(0, 0, oldRange.endLine, oldRange.endColumn);
-            putCursorToEnd = true;
-            // If needs to make a small deletion, just change oldRange
-            last_line = this._textModel.copyRange(line_range);
-            doc_str = this._textModel.copyRange(start_range);
-            var res = handle(newString, last_line, doc_str);
-            if (res.res) {
-                newString = res.res;
-                oldRange.startColumn -= res.shift;
+        if (WebInspector.experimentsSettings.modifiedEditor.isEnabled()) {
+            if (this._textModel.copyRange(oldRange).length == 0 && newString.length == 1) {
+                putCursorToEnd = true;
+                // Find out what is on the line...
+                var line_range = new WebInspector.TextRange(oldRange.endLine, 0, oldRange.endLine, oldRange.endColumn);
+                var start_range = new WebInspector.TextRange(0, 0, oldRange.endLine, oldRange.endColumn);
+                // If needs to make a small deletion, just change oldRange
+                var last_line = this._textModel.copyRange(line_range);
+                var doc_str = this._textModel.copyRange(start_range);
+                var res = handle(newString, last_line, doc_str);
+                if (res.res) {
+                    newString = res.res;
+                    oldRange.startColumn -= res.shift;
+                }
+                else newString = res;
             }
-            else newString = res;
         }
         var newRange = this._setText(oldRange, newString);
 

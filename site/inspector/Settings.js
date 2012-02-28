@@ -167,13 +167,16 @@ WebInspector.ExperimentsSettings = function()
     this._setting = WebInspector.settings.createSetting("experiments", {});
     this._experiments = [];
     this._enabledForTest = {};
-    
+
     // Add currently running experiments here.
     this.sourceFrameAlwaysEditable = this._createExperiment("sourceFrameAlwaysEditable", "Make resources always editable");
     this.freeFlowDOMEditing = this._createExperiment("freeFlowDOMEditing", "Enable free flow DOM editing");
     this.showMemoryCounters = this._createExperiment("showMemoryCounters", "Show memory counters in Timeline panel");
     this.timelineStartAtZero = this._createExperiment("timelineStartAtZero", "Enable start at zero mode in Timeline panel");
     this.debugCSS = this._createExperiment("debugCSS", "Load CSS via link tags for debugging");
+
+    this.modifiedEditor = this._createExperiment("modifiedEditor", "Enable my modifications to editor");
+    this.saveToServer = this._createExperiment("saveToServer", "Save to server");
 
     this._cleanUpSetting();
 }

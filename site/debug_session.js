@@ -1,15 +1,16 @@
 
 var Connection = require("./v8debug").Connection;
 var spawn = require("child_process").spawn;
-var fs = require("fs");
 
 var port = 5858;
 
-exports.make = function (args) {
+exports.make = function (args, opt) {
+
+opt = opt || {};
 
 console.log(args);
 
-var child = spawn("node", ["--debug="+port].concat(args));
+var child = spawn("node", ["--debug" + (opt.paused ? "-brk" : "") + "="+port].concat(args));
 
 port++;
 
@@ -314,7 +315,8 @@ var Debugger = {
     },
     resume: function (x, cont) {
         // paused = false;
-        conn.command("continue", {stepaction: "out", stepcount: 100}, function () {
+        conn.command("continue", {stepaction: "out", stepcount: 10}, function (msg) {
+            // console.log(msg);
             postMessage("Debugger.resumed", {});
             cont({});
         });
@@ -353,9 +355,6 @@ var Debugger = {
         var id = parseInt(x.scriptId);
         var fname = scriptById(id)[0].name;
         console.log("Doing live edit: " + fname);
-        var save_source = "\n" + x.scriptSource.split("\n").slice(1,-1).join("\n") + "\n";
-        // Make sure that the system files are not saved?
-        if (save_on_edit) fs.writeFile(fname, save_source);
         conn.command("changelive", {script_id: id, new_source: x.scriptSource}, function (resp) {
             if (resp.body && resp.body.stepin_recommended) makeBacktrace(function (lst) { cont({result:{callFrames:lst}}); });
             else cont({});

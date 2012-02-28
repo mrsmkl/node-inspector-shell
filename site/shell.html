@@ -22,6 +22,7 @@
 <div id="file_dialog">
     <h2>Select file to run</h2>
     <label for="filter">Search:</label><input type="text" id="filter" onkeyup="search();" />
+    <button>New file</button><button>New directory</button>
     <div id="files"></div>
 </div>
 
@@ -32,7 +33,8 @@
     <div>Arg 2: <input type="text" id="arg_2" /></div>
     <div>Arg 3: <input type="text" id="arg_3" /></div>
     <div>Arg 4: <input type="text" id="arg_4" /></div>
-    <button id="launch_button" onclick="launch();">Launch</button>
+    <button onclick="launch(false);">Launch</button>
+    <button onclick="launch(true);">Launch paused</button>
 </div>
 
 <script>
@@ -50,7 +52,11 @@ function search() {
     printFiles();
 }
 
-function launch() {
+function inspectorLink(id) {
+    return "inspector/devtools.html?experiments=true&nodeDebug=1&port=" + id;
+}
+
+function launch(paused) {
     var fname = $("#process_name").text();
     var args = [];
     for (var i = 1; i <= 4; i++) {
@@ -60,10 +66,10 @@ function launch() {
     var id = Math.floor(Math.random()*1000000);
     // $("#launch_button").button("disable");
     // Make link, also opne new window
-    var link = "inspector/devtools.html?nodeDebug=1&port=" + id;
+    var link = inspectorLink(id);
     window.open(link, "_blank");
     $("#inspector_link").html('<a href="' + link + '" target="_blank">Go to inspector</a>');
-    sock.emit("launch", {id: id, main: fname, args: args}, function (obj) {
+    sock.emit("launch", {id: id, main: fname, args: args, paused: paused}, function (obj) {
         updateProcessList();
         // $("#launch_button").button("disable");
         // $("#arg_dialog").dialog("close");
@@ -123,7 +129,7 @@ function updateDir(dname) {
 }
 
 function printLink(elem) {
-    var link = "inspector/devtools.html?nodeDebug=1&port=" + elem.id;
+    var link = inspectorLink(elem.id);
     var kill = elem.status == "connected" ? '<button onclick="kill(' + elem.id + ');">Kill</button>': "";
     return '<div><a href="' + link + '" target="_blank">Process ' + elem.name + ' (' + elem.id + ')</a>: ' + elem.status + kill + '</div>';
 }
