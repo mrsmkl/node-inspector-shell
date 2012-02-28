@@ -475,9 +475,13 @@ WebInspector.CSSStyleDeclaration.prototype = {
         return 0;
     },
 
-    newBlankProperty: function()
+    /**
+     * @param {number=} index
+     */
+    newBlankProperty: function(index)
     {
-        return new WebInspector.CSSProperty(this, this.pastLastSourcePropertyIndex(), "", "", "", "active", true, false, false, "");
+        index = (typeof index === "undefined") ? this.pastLastSourcePropertyIndex() : index;
+        return new WebInspector.CSSProperty(this, index, "", "", "", "active", true, false, false, "");
     },
 
     insertPropertyAt: function(index, name, value, userCallback)
@@ -616,8 +620,15 @@ WebInspector.CSSProperty.prototype = {
         return this.status === "disabled";
     },
 
-    // Replaces "propertyName: propertyValue [!important];" in the stylesheet by an arbitrary propertyText.
-    setText: function(propertyText, majorChange, userCallback)
+    /**
+     * Replaces "propertyName: propertyValue [!important];" in the stylesheet by an arbitrary propertyText.
+     *
+     * @param {string} propertyText
+     * @param {boolean} majorChange
+     * @param {boolean} overwrite
+     * @param {Function=} userCallback
+     */
+    setText: function(propertyText, majorChange, overwrite, userCallback)
     {
         function enabledCallback(style)
         {
@@ -651,15 +662,21 @@ WebInspector.CSSProperty.prototype = {
 
         // An index past all the properties adds a new property to the style.
         WebInspector.cssModel._pendingCommandsMajorState.push(majorChange);
-        CSSAgent.setPropertyText(this.ownerStyle.id, this.index, propertyText, this.index < this.ownerStyle.pastLastSourcePropertyIndex(), callback.bind(this));
+        CSSAgent.setPropertyText(this.ownerStyle.id, this.index, propertyText, overwrite, callback.bind(this));
         if (majorChange)
             DOMAgent.markUndoableState();
     },
 
-    setValue: function(newValue, majorChange, userCallback)
+    /**
+     * @param {string} newValue
+     * @param {boolean} majorChange
+     * @param {boolean} overwrite
+     * @param {Function=} userCallback
+     */
+    setValue: function(newValue, majorChange, overwrite, userCallback)
     {
         var text = this.name + ": " + newValue + (this.priority ? " !" + this.priority : "") + ";"
-        this.setText(text, majorChange, userCallback);
+        this.setText(text, majorChange, overwrite, userCallback);
     },
 
     setDisabled: function(disabled, userCallback)

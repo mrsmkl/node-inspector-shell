@@ -1521,6 +1521,8 @@ WebInspector.ElementsTreeElement.prototype = {
         var classes = [ "webkit-html-tag" ];
         if (isClosingTag && isDistinctTreeElement)
             classes.push("close");
+        if (node.isInShadowTree())
+            classes.push("shadow");
         var tagElement = parentElement.createChild("span", classes.join(" "));
         tagElement.appendChild(document.createTextNode("<"));
         var tagNameElement = tagElement.createChild("span", isClosingTag ? "" : "webkit-html-tag-name");
@@ -1543,10 +1545,6 @@ WebInspector.ElementsTreeElement.prototype = {
         var info = {titleDOM: document.createDocumentFragment(), hasChildren: this.hasChildren};
 
         switch (node.nodeType()) {
-            case Node.DOCUMENT_FRAGMENT_NODE:
-                info.titleDOM.appendChild(document.createTextNode("Document Fragment"));
-                break;
-
             case Node.ATTRIBUTE_NODE:
                 var value = node.value || "\u200B"; // Zero width space to force showing an empty value.
                 this._buildAttributeDOM(info.titleDOM, node.name, value);
@@ -1632,10 +1630,15 @@ WebInspector.ElementsTreeElement.prototype = {
                 var cdataElement = info.titleDOM.createChild("span", "webkit-html-text-node");
                 cdataElement.appendChild(document.createTextNode("<![CDATA[" + node.nodeValue() + "]]>"));
                 break;
+            case Node.DOCUMENT_FRAGMENT_NODE:
+                var fragmentElement = info.titleDOM.createChild("span", "webkit-html-fragment");
+                fragmentElement.textContent = node.nodeNameInCorrectCase().collapseWhitespace();
+                if (node.isInShadowTree())
+                    fragmentElement.addStyleClass("shadow");
+                break;
             default:
-                var defaultElement = info.titleDOM.appendChild(document.createTextNode(node.nodeNameInCorrectCase().collapseWhitespace()));
+                info.titleDOM.appendChild(document.createTextNode(node.nodeNameInCorrectCase().collapseWhitespace()));
         }
-
         return info;
     },
 

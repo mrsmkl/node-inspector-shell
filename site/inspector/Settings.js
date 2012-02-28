@@ -174,6 +174,7 @@ WebInspector.ExperimentsSettings = function()
     this.showMemoryCounters = this._createExperiment("showMemoryCounters", "Show memory counters in Timeline panel");
     this.timelineStartAtZero = this._createExperiment("timelineStartAtZero", "Enable start at zero mode in Timeline panel");
     this.debugCSS = this._createExperiment("debugCSS", "Load CSS via link tags for debugging");
+    this.showShadowDOM = this._createExperiment("showShadowDOM", "Show shadow DOM");
 
     this.modifiedEditor = this._createExperiment("modifiedEditor", "Enable my modifications to editor");
     this.saveToServer = this._createExperiment("saveToServer", "Save to server");

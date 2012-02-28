@@ -353,6 +353,10 @@
     opacity: 0.2;
 }
 
+.timeline-graph-bar.cpu {
+    opacity: 0.6;
+}
+
 .timeline-graph-side.even {
     background-color: rgba(0, 0, 0, 0.05);
 }
@@ -555,16 +559,25 @@
     border-top: 1px solid #AAA;
 }
 
+#memory-graphs-canvas-container {
+    border-right: 1px solid #AAA;
+}
+
+#memory-graphs-canvas-container .resources-dividers {
+    top: 15px;
+}
+
 #memory-graphs-container .split-view-contents {
     overflow: hidden;
 }
 
 .memory-counter-sidebar-info {
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
     font-size: 11px;
+    margin: 10px;
+}
+
+.memory-counter-sidebar-info .swatch{
+    background-image: none;
 }
 
 .memory-counter-sidebar-info.bottom-border-visible {
@@ -573,15 +586,20 @@
 
 .memory-counter-sidebar-info .title {
     margin: 4px;
-    font-weight: bold;
 }
 
-.memory-counter-sidebar-info .counter-value {
+.memory-counter-value {
     margin: 4px;
+    font-size: 11px;
 }
 
 .timeline-overview-start-at-zero {
     background-color: white;
+}
+
+#counter-values-bar {
+    border-bottom: solid 1px lightgray;
+    min-height: 15px;
 }
 
 .timeline-overview-start-at-zero-bars {

@@ -717,6 +717,29 @@ WebInspector.documentKeyDown = function(event)
             }
             break;
     }
+
+    switch (event.keyCode) {
+        case 107: // +
+        case 187: // +
+            if (hasCtrlOrMeta && !InspectorFrontendHost.isStub) {
+                WebInspector._zoomIn();
+                event.preventDefault();
+            }
+            break;
+        case 109: // -
+        case 189: // -
+            if (hasCtrlOrMeta && !InspectorFrontendHost.isStub) {
+                WebInspector._zoomOut();
+                event.preventDefault();
+            }
+            break;
+        case 48: // 0
+            if (hasCtrlOrMeta && !InspectorFrontendHost.isStub) {
+                WebInspector._resetZoom();
+                event.preventDefault();
+            }
+            break;
+    }
 }
 
 WebInspector.documentCanCopy = function(event)
