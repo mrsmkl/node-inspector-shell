@@ -205,6 +205,7 @@ WebInspector.TimelinePresentationModel.prototype = {
             recordStyles[recordTypes.Layout] = { title: WebInspector.UIString("Layout"), category: categories["rendering"] };
             recordStyles[recordTypes.RecalculateStyles] = { title: WebInspector.UIString("Recalculate Style"), category: categories["rendering"] };
             recordStyles[recordTypes.Paint] = { title: WebInspector.UIString("Paint"), category: categories["rendering"] };
+            recordStyles[recordTypes.BeginFrame] = { title: WebInspector.UIString("Frame Start"), category: categories["rendering"] };
             recordStyles[recordTypes.ParseHTML] = { title: WebInspector.UIString("Parse"), category: categories["loading"] };
             recordStyles[recordTypes.TimerInstall] = { title: WebInspector.UIString("Install Timer"), category: categories["scripting"] };
             recordStyles[recordTypes.TimerRemove] = { title: WebInspector.UIString("Remove Timer"), category: categories["scripting"] };
@@ -431,7 +432,7 @@ WebInspector.TimelinePresentationModel.Record.prototype = {
             contentHelper._appendElementRow(WebInspector.UIString("Aggregated Time"), this._generateAggregatedInfo());
         }
         var text = WebInspector.UIString("%s (at %s)", Number.secondsToString(this._lastChildEndTime - this.startTime, true),
-            calculator.formatValue(this.startTime - calculator.minimumBoundary));
+            Number.secondsToString(this.startTime - this._presentationModel.minimumRecordTime()));
         contentHelper._appendTextRow(WebInspector.UIString("Duration"), text);
 
         const recordTypes = WebInspector.TimelineModel.RecordType;

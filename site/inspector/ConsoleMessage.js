@@ -128,9 +128,11 @@ WebInspector.ConsoleMessageImpl.prototype = {
             }
         }
 
-        if (this._anchorElement)
-            this._formattedMessage.appendChild(this._anchorElement);
         this._formattedMessage.appendChild(this._messageElement);
+        if (this._anchorElement) {
+            this._formattedMessage.appendChild(document.createTextNode(" "));
+            this._formattedMessage.appendChild(this._anchorElement);
+        }
         
         var dumpStackTrace = !!this._stackTrace && this._stackTrace.length && (this.source === WebInspector.ConsoleMessage.MessageSource.Network || this.level === WebInspector.ConsoleMessage.MessageLevel.Error || this.type === WebInspector.ConsoleMessage.MessageType.Trace);
         if (dumpStackTrace) {
@@ -299,9 +301,13 @@ WebInspector.ConsoleMessageImpl.prototype = {
         object.pushNodeToFrontend(printNode.bind(this));
     },
 
-    _formatParameterAsArray: function(arr, elem)
+    _formatParameterAsArray: function(array, elem)
     {
-        arr.getOwnProperties(this._printArray.bind(this, elem));
+        const maxFlatArrayLength = 100;
+        if (array.arrayLength() > maxFlatArrayLength)
+            this._formatParameterAsObject(array, elem);
+        else
+            array.getOwnProperties(this._printArray.bind(this, array, elem));
     },
 
     _formatParameterAsString: function(output, elem)
@@ -317,19 +323,16 @@ WebInspector.ConsoleMessageImpl.prototype = {
         elem.appendChild(document.createTextNode("\""));
     },
 
-    _printArray: function(elem, properties)
+    _printArray: function(array, elem, properties)
     {
         if (!properties)
             return;
 
         var elements = [];
-        var length = 0;
         for (var i = 0; i < properties.length; ++i) {
             var property = properties[i];
             var name = property.name;
-            if (name === "length")
-                length = parseInt(property.value.description, 10);
-            if (name == parseInt(name, 10))
+            if (!isNaN(name))
                 elements[name] = this._formatAsArrayEntry(property.value);
         }
 
@@ -344,6 +347,7 @@ WebInspector.ConsoleMessageImpl.prototype = {
             span.textContent = WebInspector.UIString("undefined × %d", index - lastNonEmptyIndex - 1);
         }
 
+        var length = array.arrayLength();
         for (var i = 0; i < length; ++i) {
             var element = elements[i];
             if (!element)
@@ -505,6 +509,7 @@ WebInspector.ConsoleMessageImpl.prototype = {
             content.appendChild(messageTextElement);
 
             if (frame.url) {
+                content.appendChild(document.createTextNode(" "));
                 var urlElement = this._linkifyCallFrame(frame);
                 content.appendChild(urlElement);
             }
@@ -605,12 +610,12 @@ WebInspector.ConsoleMessageImpl.prototype = {
         return this._messageText;
     },
 
-    get location()
+    location: function()
     {
         // FIXME(62725): stack trace line/column numbers are one-based.
         var lineNumber = this.stackTrace ? this.stackTrace[0].lineNumber - 1 : this.line - 1;
         var columnNumber = this.stackTrace ? this.stackTrace[0].columnNumber - 1 : 0;
-        return new WebInspector.DebuggerModel.Location(lineNumber, columnNumber);
+        return WebInspector.debuggerModel.createRawLocationByURL(this.url, lineNumber, columnNumber);
     },
 
     isEqual: function(msg)

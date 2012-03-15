@@ -189,7 +189,17 @@ WebInspector.StylesSidebarPane.alteredHexNumber = function(hexString, event)
     for (var i = 0, lengthDelta = hexString.length - resultString.length; i < lengthDelta; ++i)
         resultString = "0" + resultString;
     return resultString;
-},
+}
+
+WebInspector.StylesSidebarPane.canonicalPropertyName = function(name)
+{
+    if (!name || name.length < 9 || name.charAt(0) !== "-")
+        return name;
+    var match = name.match(/(?:-webkit-|-khtml-|-apple-)(.+)/);
+    if (!match)
+        return name;
+    return match[1];
+}
 
 WebInspector.StylesSidebarPane.prototype = {
     _contextMenuEventFired: function(event)
@@ -563,26 +573,26 @@ WebInspector.StylesSidebarPane.prototype = {
                 var property = allProperties[j];
                 if (!property.isLive || !property.parsedOk)
                     continue;
-                var name = property.name;
+                var canonicalName = WebInspector.StylesSidebarPane.canonicalPropertyName(property.name);
 
                 if (!priorityUsed && property.priority.length)
                     priorityUsed = true;
 
                 // If the property name is already used by another rule then this rule's
                 // property is overloaded, so don't add it to the rule's usedProperties.
-                if (!(name in usedProperties))
-                    styleRule.usedProperties[name] = true;
+                if (!(canonicalName in usedProperties))
+                    styleRule.usedProperties[canonicalName] = true;
             }
 
             // Add all the properties found in this style to the used properties list.
             // Do this here so only future rules are affect by properties used in this rule.
-            for (var name in styleRules[i].usedProperties)
-                usedProperties[name] = true;
+            for (var canonicalName in styleRules[i].usedProperties)
+                usedProperties[canonicalName] = true;
         }
 
         if (priorityUsed) {
             // Walk the properties again and account for !important.
-            var foundPriorityProperties = [];
+            var foundPriorityProperties = {};
 
             // Walk in direct order to detect the active/most specific rule providing a priority
             // (in this case all subsequent !important values get canceled.)
@@ -596,15 +606,15 @@ WebInspector.StylesSidebarPane.prototype = {
                     var property = allProperties[j];
                     if (!property.isLive)
                         continue;
-                    var name = property.name;
+                    var canonicalName = WebInspector.StylesSidebarPane.canonicalPropertyName(property.name);
                     if (property.priority.length) {
-                        if (!(name in foundPriorityProperties))
-                            styleRules[i].usedProperties[name] = true;
+                        if (!(canonicalName in foundPriorityProperties))
+                            styleRules[i].usedProperties[canonicalName] = true;
                         else
-                            delete styleRules[i].usedProperties[name];
-                        foundPriorityProperties[name] = true;
-                    } else if (name in foundPriorityProperties)
-                        delete styleRules[i].usedProperties[name];
+                            delete styleRules[i].usedProperties[canonicalName];
+                        foundPriorityProperties[canonicalName] = true;
+                    } else if (canonicalName in foundPriorityProperties)
+                        delete styleRules[i].usedProperties[canonicalName];
                 }
             }
         }
@@ -967,6 +977,7 @@ WebInspector.StylePropertiesSection = function(parentPane, styleRule, editable, 
     var openBrace = document.createElement("span");
     openBrace.textContent = " {";
     selectorContainer.appendChild(openBrace);
+    selectorContainer.addEventListener("mousedown", this._handleEmptySpaceMouseDown.bind(this), false);
     selectorContainer.addEventListener("click", this._handleSelectorContainerClick.bind(this), false);
 
     var closeBrace = document.createElement("div");
@@ -1032,7 +1043,8 @@ WebInspector.StylePropertiesSection.prototype = {
             return false;
         }
 
-        var used = (propertyName in this._usedProperties);
+        var canonicalName = WebInspector.StylesSidebarPane.canonicalPropertyName(propertyName);
+        var used = (canonicalName in this._usedProperties);
         if (used || !shorthand)
             return !used;
 
@@ -1041,7 +1053,7 @@ WebInspector.StylePropertiesSection.prototype = {
         var longhandProperties = this.styleRule.style.getLonghandProperties(propertyName);
         for (var j = 0; j < longhandProperties.length; ++j) {
             var individualProperty = longhandProperties[j];
-            if (individualProperty.name in this._usedProperties)
+            if (WebInspector.StylesSidebarPane.canonicalPropertyName(individualProperty.name) in this._usedProperties)
                 return false;
         }
 
@@ -1164,8 +1176,17 @@ WebInspector.StylePropertiesSection.prototype = {
         return null;
     },
 
+    _checkWillCancelEditing: function()
+    {
+        var willCauseCancelEditing = this._willCauseCancelEditing;
+        delete this._willCauseCancelEditing;
+        return willCauseCancelEditing;
+    },
+
     _handleSelectorContainerClick: function(event)
     {
+        if (this._checkWillCancelEditing())
+            return;
         if (event.target === this._selectorContainer)
             this.addNewBlankProperty(0).startEditing();
     },
@@ -1219,9 +1240,7 @@ WebInspector.StylePropertiesSection.prototype = {
 
     _handleEmptySpaceClick: function(event)
     {
-        var willCauseCancelEditing = this._willCauseCancelEditing;
-        delete this._willCauseCancelEditing;
-        if (willCauseCancelEditing)
+        if (this._checkWillCancelEditing())
             return;
 
         if (event.target.hasStyleClass("header") || this.element.hasStyleClass("read-only") || event.target.enclosingNodeOrSelfWithClass("media")) {
@@ -1618,14 +1637,16 @@ WebInspector.StylePropertyTreeElement.prototype = {
         this.updateTitle();
         this.listItemElement.addEventListener("mousedown", this._mouseDown.bind(this));
         this.listItemElement.addEventListener("mouseup", this._resetMouseDownElement.bind(this));
-        this.listItemElement.addEventListener("click", this._startEditing.bind(this));
+        this.listItemElement.addEventListener("click", this._mouseClick.bind(this));
     },
 
     _mouseDown: function(event)
     {
-        this._parentPane._mouseDownTreeElement = this;
-        this._parentPane._mouseDownTreeElementIsName = this._isNameElement(event.target);
-        this._parentPane._mouseDownTreeElementIsValue = this._isValueElement(event.target);
+        if (this._parentPane) {
+            this._parentPane._mouseDownTreeElement = this;
+            this._parentPane._mouseDownTreeElementIsName = this._isNameElement(event.target);
+            this._parentPane._mouseDownTreeElementIsValue = this._isValueElement(event.target);
+        }
     },
 
     _resetMouseDownElement: function()
@@ -2001,12 +2022,14 @@ WebInspector.StylePropertyTreeElement.prototype = {
         this.listItemElement.insertBefore(this.nameElement, this.listItemElement.firstChild);
     },
 
-    _startEditing: function(event)
+    _mouseClick: function(event)
     {
         event.stopPropagation();
         event.preventDefault();
 
         if (event.target === this.listItemElement) {
+            if (this.section._checkWillCancelEditing())
+                return;
             this.section.addNewBlankProperty(this.property.index + 1).startEditing();
             return;
         }
@@ -2280,6 +2303,7 @@ WebInspector.StylePropertyTreeElement.prototype = {
         }
 
         // Make the Changes and trigger the moveToNextCallback after updating.
+        var moveToIndex = moveTo && this.treeOutline ? this.treeOutline.children.indexOf(moveTo) : -1;
         var blankInput = /^\s*$/.test(userInput);
         var isDataPasted = "originalName" in context;
         var isDirtyViaPaste = isDataPasted && (this.nameElement.textContent !== context.originalName || this.valueElement.textContent !== context.originalValue);
@@ -2301,8 +2325,6 @@ WebInspector.StylePropertyTreeElement.prototype = {
                 this.updateTitle();
             moveToNextCallback.call(this, this._newProperty, false, this.treeOutline.section);
         }
-
-        var moveToIndex = moveTo && this.treeOutline ? this.treeOutline.children.indexOf(moveTo) : -1;
 
         // The Callback to start editing the next/previous property/selector.
         function moveToNextCallback(alreadyNew, valueChanged, section)
@@ -2327,7 +2349,10 @@ WebInspector.StylePropertyTreeElement.prototype = {
                 else {
                     var treeElement = moveToIndex >= 0 ? propertyElements[moveToIndex] : null;
                     if (treeElement) {
-                        treeElement.startEditing(!isEditingName ? treeElement.nameElement : treeElement.valueElement);
+                        var elementToEdit = !isEditingName ? treeElement.nameElement : treeElement.valueElement;
+                        if (alreadyNew && blankInput)
+                            elementToEdit = moveDirection === "forward" ? treeElement.nameElement : treeElement.valueElement;
+                        treeElement.startEditing(elementToEdit);
                         return;
                     } else if (!alreadyNew)
                         moveToSelector = true;
@@ -2581,7 +2606,7 @@ WebInspector.StylesSidebarPane.CSSPropertyPrompt.prototype = {
         return false;
     },
 
-    _buildPropertyCompletions: function(wordRange, force, completionsReadyCallback)
+    _buildPropertyCompletions: function(textPrompt, wordRange, force, completionsReadyCallback)
     {
         var prefix = wordRange.toString().toLowerCase();
         if (!prefix && !force)
