@@ -39,6 +39,8 @@ var WebInspector = {
 
         if (WebInspector.WorkerManager.isWorkerFrontend() || "nodeDebug" in WebInspector.queryParamsObject) {
             this.panels.scripts = new WebInspector.ScriptsPanel(this.debuggerPresentationModel);
+            this.panels.timeline = new WebInspector.TimelinePanel();
+            this.panels.profiles = new WebInspector.ProfilesPanel();
             this.panels.console = new WebInspector.ConsolePanel();
             return;
         }
@@ -71,6 +73,7 @@ var WebInspector = {
         this._dockToggleButton = new WebInspector.StatusBarButton(this._dockButtonTitle(), "dock-status-bar-item");
         this._dockToggleButton.addEventListener("click", this._toggleAttach.bind(this), false);
         this._dockToggleButton.toggled = !this.attached;
+        WebInspector.updateDockToggleButton();
 
         this._settingsButton = new WebInspector.StatusBarButton(WebInspector.UIString("Settings"), "settings-status-bar-item");
         this._settingsButton.addEventListener("click", this._toggleSettings.bind(this), false);
@@ -426,6 +429,8 @@ WebInspector._doLoadedDoneWithCapabilities = function()
     this.console.addEventListener(WebInspector.ConsoleModel.Events.RepeatCountUpdated, this._updateErrorAndWarningCounts, this);
 
     this.debuggerModel = new WebInspector.DebuggerModel();
+    if (WebInspector.experimentsSettings.snippetsSupport.isEnabled())
+        this.snippetsModel = new WebInspector.SnippetsModel();
     this.debuggerPresentationModel = new WebInspector.DebuggerPresentationModel();
 
     this.drawer = new WebInspector.Drawer();
@@ -581,6 +586,20 @@ WebInspector.windowResize = function(event)
 WebInspector.setAttachedWindow = function(attached)
 {
     this.attached = attached;
+    WebInspector.updateDockToggleButton();
+}
+
+WebInspector.setDockingUnavailable = function(unavailable)
+{
+    this._isDockingUnavailable = unavailable;
+    WebInspector.updateDockToggleButton();
+}
+
+WebInspector.updateDockToggleButton = function()
+{
+    if (!this._dockToggleButton)
+        return;
+    this._dockToggleButton.disabled = this.attached ? false : this._isDockingUnavailable;
 }
 
 WebInspector.close = function(event)
@@ -644,8 +663,8 @@ WebInspector.openResource = function(resourceURL, inResourcesPanel)
 {
     var resource = WebInspector.resourceForURL(resourceURL);
     if (inResourcesPanel && resource) {
-        WebInspector.panels.resources.showResource(resource);
         WebInspector.showPanel("resources");
+        WebInspector.panels.resources.showResource(resource);
     } else
         InspectorFrontendHost.openInNewTab(resourceURL);
 }
@@ -727,38 +746,40 @@ WebInspector.documentKeyDown = function(event)
             }
             break;
         case "U+0052": // R key
-            if (WebInspector.isInEditMode(event))
-                return;
             if ((event.metaKey && isMac) || (event.ctrlKey && !isMac)) {
                 PageAgent.reload(event.shiftKey);
                 event.preventDefault();
             }
             break;
         case "F5":
-            if (!isMac && !WebInspector.isInEditMode(event)) {
+            if (!isMac) {
                 PageAgent.reload(event.ctrlKey || event.shiftKey);
                 event.preventDefault();
             }
             break;
     }
 
+    var isValidZoomShortcut = WebInspector.KeyboardShortcut.eventHasCtrlOrMeta(event) &&
+        !event.shiftKey &&
+        !event.altKey &&
+        !InspectorFrontendHost.isStub;
     switch (event.keyCode) {
         case 107: // +
         case 187: // +
-            if (hasCtrlOrMeta && !InspectorFrontendHost.isStub) {
+            if (isValidZoomShortcut) {
                 WebInspector._zoomIn();
                 event.preventDefault();
             }
             break;
         case 109: // -
         case 189: // -
-            if (hasCtrlOrMeta && !InspectorFrontendHost.isStub) {
+            if (isValidZoomShortcut) {
                 WebInspector._zoomOut();
                 event.preventDefault();
             }
             break;
         case 48: // 0
-            if (hasCtrlOrMeta && !InspectorFrontendHost.isStub) {
+            if (isValidZoomShortcut) {
                 WebInspector._resetZoom();
                 event.preventDefault();
             }

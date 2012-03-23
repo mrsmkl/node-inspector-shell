@@ -365,7 +365,7 @@ WebInspector.DOMNode.prototype = {
 
         var className = this.getAttribute("class");
         if (className) {
-            var selector = "." + className.replace(/\s+/, ".");
+            var selector = "." + className.trim().replace(/\s+/g, ".");
             return (justSelector ? selector : lowerCaseName + selector);
         }
 
@@ -680,8 +680,6 @@ WebInspector.DOMAgent = function() {
     this._document = null;
     this._attributeLoadNodeIds = {};
     InspectorBackend.registerDOMDispatcher(new WebInspector.DOMDispatcher(this));
-    if (WebInspector.experimentsSettings.freeFlowDOMEditing.isEnabled())
-        new WebInspector.DOMModelResourceBinding(this);
 
     if (WebInspector.settings.emulateTouchEvents.get())
         this._emulateTouchEventsChanged();
@@ -1146,7 +1144,7 @@ WebInspector.DOMAgent.prototype = {
         {
             if (callback)
                 callback.apply(this, arguments);
-            if (error || !WebInspector.experimentsSettings.freeFlowDOMEditing.isEnabled())
+            if (error)
                 return;
             if (this._captureDOMTimer)
                clearTimeout(this._captureDOMTimer);

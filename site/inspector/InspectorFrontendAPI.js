@@ -90,6 +90,11 @@ InspectorFrontendAPI = {
         // FIXME: Implement this to show the source code for the main resource of a given frame.
     },
 
+    setDockingUnavailable: function(unavailable)
+    {
+        WebInspector.setDockingUnavailable(unavailable);
+    },
+
     dispatch: function(signature)
     {
         if (WebInspector.panels) {

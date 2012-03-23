@@ -259,8 +259,8 @@ WebInspector.ScriptsPanel.prototype = {
     {
         var uiSourceCode = /** @type {WebInspector.UISourceCode} */ event.data;
 
-        if (!uiSourceCode.url) {
-            // Anonymous sources are shown only when stepping.
+        if (!uiSourceCode.url || uiSourceCode.isSnippetEvaluation) {
+            // Anonymous sources and snippets evaluations are shown only when stepping.
             return;
         }
 
@@ -294,11 +294,9 @@ WebInspector.ScriptsPanel.prototype = {
 
     _consoleMessagesCleared: function()
     {
-        var uiSourceCodes = this._sourceFramesByUISourceCode;
-        for (var i = 0; i < uiSourceCodes.length; ++i) {
-            var sourceFrame = this._sourceFramesByUISourceCode.get(uiSourceCodes[i])
-            sourceFrame.clearMessages();
-        }
+        var sourceFrames = this._sourceFramesByUISourceCode.values();
+        for (var i = 0; i < sourceFrames.length; ++i)
+            sourceFrames[i].clearMessages();
     },
 
     _consoleMessageAdded: function(event)
@@ -349,9 +347,7 @@ WebInspector.ScriptsPanel.prototype = {
         this._updateDebuggerButtons();
 
         WebInspector.inspectorView.setCurrentPanel(this);
-
         this.sidebarPanes.callstack.update(callFrames);
-        this._updateCallFrame(this._presentationModel.selectedCallFrame);
 
         if (details.reason === WebInspector.DebuggerModel.BreakReason.DOM) {
             this.sidebarPanes.domBreakpoints.highlightBreakpoint(details.auxData);
@@ -608,21 +604,20 @@ WebInspector.ScriptsPanel.prototype = {
     {
         var uiLocation = event.data;
 
-        this._updateExecutionLine(uiLocation);
-    },
-
-    _updateExecutionLine: function(uiLocation)
-    {
         this._clearCurrentExecutionLine();
         if (!uiLocation)
             return;
-
-        // Anonymous scripts are not added to files select by default.
-        this._addUISourceCode(uiLocation.uiSourceCode);
-
-        var sourceFrame = this._showFile(uiLocation.uiSourceCode);
+        var sourceFrame = this._getOrCreateSourceFrame(uiLocation.uiSourceCode);
         sourceFrame.setExecutionLine(uiLocation.lineNumber);
         this._executionSourceFrame = sourceFrame;
+    },
+
+    _revealExecutionLine: function(uiLocation)
+    {
+        // Some scripts (anonymous and snippets evaluations) are not added to files select by default.
+        this._addUISourceCode(uiLocation.uiSourceCode);
+        var sourceFrame = this._showFile(uiLocation.uiSourceCode);
+        sourceFrame.revealLine(uiLocation.lineNumber);
     },
 
     _callFrameSelected: function(event)
@@ -632,14 +627,10 @@ WebInspector.ScriptsPanel.prototype = {
         if (!callFrame)
             return;
 
-        this._updateCallFrame(callFrame);
-    },
-
-    _updateCallFrame: function(callFrame)
-    {
         this.sidebarPanes.scopechain.update(callFrame);
         this.sidebarPanes.watchExpressions.refreshExpressions();
         this.sidebarPanes.callstack.selectedCallFrame = callFrame;
+        callFrame.uiLocation(this._revealExecutionLine.bind(this));
     },
 
     _editorClosed: function(event)

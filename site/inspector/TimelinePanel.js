@@ -55,15 +55,13 @@ WebInspector.TimelinePanel = function()
     this._containerElement.id = "timeline-container";
     this._containerElement.addEventListener("scroll", this._onScroll.bind(this), false);
 
-    if (WebInspector.experimentsSettings.showMemoryCounters.isEnabled()) {
-        this._timelineMemorySplitter = this.element.createChild("div");
-        this._timelineMemorySplitter.id = "timeline-memory-splitter";
-        this._timelineMemorySplitter.addEventListener("mousedown", this._startSplitterDragging.bind(this), false);
-        this._timelineMemorySplitter.addStyleClass("hidden");
-        this._memoryStatistics = new WebInspector.MemoryStatistics(this, this.splitView.preferredSidebarWidth());
-        this._overviewPane.addEventListener(WebInspector.TimelineOverviewPane.Events.ModeChanged, this._timelinesOverviewModeChanged, this);
-        WebInspector.settings.memoryCounterGraphsHeight = WebInspector.settings.createSetting("memoryCounterGraphsHeight", 150);
-    }
+    this._timelineMemorySplitter = this.element.createChild("div");
+    this._timelineMemorySplitter.id = "timeline-memory-splitter";
+    this._timelineMemorySplitter.addEventListener("mousedown", this._startSplitterDragging.bind(this), false);
+    this._timelineMemorySplitter.addStyleClass("hidden");
+    this._memoryStatistics = new WebInspector.MemoryStatistics(this, this.splitView.preferredSidebarWidth());
+    this._overviewPane.addEventListener(WebInspector.TimelineOverviewPane.Events.ModeChanged, this._timelinesOverviewModeChanged, this);
+    WebInspector.settings.memoryCounterGraphsHeight = WebInspector.settings.createSetting("memoryCounterGraphsHeight", 150);
 
     var itemsTreeElement = new WebInspector.SidebarSectionTreeElement(WebInspector.UIString("RECORDS"), {}, true);
     this.sidebarTree.appendChild(itemsTreeElement);
@@ -79,8 +77,7 @@ WebInspector.TimelinePanel = function()
     this._itemsGraphsElement.id = "timeline-graphs";
     this._itemsGraphsElement.addEventListener("mousewheel", this._overviewPane.scrollWindow.bind(this._overviewPane), true);
     this._containerContentElement.appendChild(this._timelineGrid.element);
-    if (this._memoryStatistics)
-        this._memoryStatistics.setMainTimelineGrid(this._timelineGrid);
+    this._memoryStatistics.setMainTimelineGrid(this._timelineGrid);
 
     this._topGapElement = document.createElement("div");
     this._topGapElement.className = "timeline-gap";
@@ -97,12 +94,13 @@ WebInspector.TimelinePanel = function()
     this._expandElements.id = "orphan-expand-elements";
     this._itemsGraphsElement.appendChild(this._expandElements);
 
-    this._calculator = new WebInspector.TimelineCalculator();
+    this._calculator = new WebInspector.TimelineCalculator(this._presentationModel);
     var shortRecordThresholdTitle = Number.secondsToString(WebInspector.TimelinePresentationModel.shortRecordThreshold);
     this._showShortRecordsTitleText = WebInspector.UIString("Show the records that are shorter than %s", shortRecordThresholdTitle);
     this._hideShortRecordsTitleText = WebInspector.UIString("Hide the records that are shorter than %s", shortRecordThresholdTitle);
     this._createStatusbarButtons();
 
+    this._verticalOverview = false;
     this._boundariesAreValid = true;
     this._scrollTop = 0;
 
@@ -161,8 +159,7 @@ WebInspector.TimelinePanel.prototype = {
     {
         delete this._dragOffset;
         WebInspector.elementDragEnd(event);
-        if (this._memoryStatistics)
-            this._memoryStatistics.show();
+        this._memoryStatistics.show();
         WebInspector.settings.memoryCounterGraphsHeight.set(this.splitView.element.offsetHeight);
     },
 
@@ -189,12 +186,8 @@ WebInspector.TimelinePanel.prototype = {
 
     get statusBarItems()
     {
-        var statusBarItems = [ this.toggleFilterButton.element, this.toggleTimelineButton.element, this.clearButton.element, this.garbageCollectButton.element, this._glueParentButton.element ];
+        var statusBarItems = [ this.toggleFilterButton.element, this.toggleTimelineButton.element, this.clearButton.element, this.garbageCollectButton.element, this._glueParentButton.element, this.statusBarFilters ];
 
-        if (WebInspector.experimentsSettings.timelineStartAtZero.isEnabled())
-            statusBarItems.push(this.toggleStartAtZeroButton.element);
-
-        statusBarItems.push(this.statusBarFilters);
         return statusBarItems;
     },
 
@@ -216,9 +209,6 @@ WebInspector.TimelinePanel.prototype = {
 
         this.garbageCollectButton = new WebInspector.StatusBarButton(WebInspector.UIString("Collect Garbage"), "garbage-collect-status-bar-item");
         this.garbageCollectButton.addEventListener("click", this._garbageCollectButtonClicked, this);
-
-        this.toggleStartAtZeroButton = new WebInspector.StatusBarButton(WebInspector.UIString("Display all top level events starting at zero"), "timeline-start-at-zero-status-bar-item");
-        this.toggleStartAtZeroButton.addEventListener("click", this._toggleStartAtZeroButtonClicked, this);
 
         this.recordsCounter = document.createElement("span");
         this.recordsCounter.className = "timeline-records-counter";
@@ -338,8 +328,13 @@ WebInspector.TimelinePanel.prototype = {
         this._timelineGrid.removeEventDividers();
         var clientWidth = this._graphRowsElement.offsetWidth - this._expandOffset;
         var dividers = [];
+        // Only show frames if we're zoomed close enough -- otherwise they'd be to dense to be useful and will overpopulate DOM.
+        var showFrames = this.calculator.boundarySpan < 1.0 && this._verticalOverview;
+
         for (var i = 0; i < this._timeStampRecords.length; ++i) {
             var record = this._timeStampRecords[i];
+            if (record.type === WebInspector.TimelineModel.RecordType.BeginFrame && !showFrames)
+                continue;
             var positions = this._calculator.computeBarGraphWindowPosition(record, clientWidth);
             var dividerPosition = Math.round(positions.left);
             if (dividerPosition < 0 || dividerPosition >= clientWidth || dividers[dividerPosition])
@@ -369,16 +364,27 @@ WebInspector.TimelinePanel.prototype = {
         else if (record.type === recordTypes.TimeStamp) {
             eventDivider.className += " resources-orange-divider";
             eventDividerPadding.title = record.data["message"];
-        }
+        } else if (record.type === recordTypes.BeginFrame)
+            eventDivider.className += " timeline-frame-divider";
+
         eventDividerPadding.appendChild(eventDivider);
         return eventDividerPadding;
     },
 
     _timelinesOverviewModeChanged: function(event)
     {
-        if (!this._memoryStatistics)
-            return;
         var shouldShowMemory = event.data === WebInspector.TimelineOverviewPane.Mode.Memory;
+        var verticalOverview = event.data === WebInspector.TimelineOverviewPane.Mode.EventsVertical;
+        if (verticalOverview !== this._verticalOverview) {
+            this._verticalOverview = verticalOverview;
+            this._glueParentButton.disabled = verticalOverview;
+            if (verticalOverview)
+                this.element.addStyleClass("timeline-vertical-overview");
+            else
+                this.element.removeStyleClass("timeline-vertical-overview");
+            this._presentationModel.setGlueRecords(this._glueParentButton.toggled && !verticalOverview);
+            this._repopulateRecords();
+        }
         if (shouldShowMemory === this._memoryStatistics.visible())
             return;
         if (!shouldShowMemory) {
@@ -422,19 +428,8 @@ WebInspector.TimelinePanel.prototype = {
     _glueParentButtonClicked: function()
     {
         this._glueParentButton.toggled = !this._glueParentButton.toggled;
-        this._presentationModel.setGlueRecords(this._glueParentButton.toggled && !this.toggleStartAtZeroButton.toggled);
+        this._presentationModel.setGlueRecords(this._glueParentButton.toggled);
         this._repopulateRecords();
-    },
-
-    _toggleStartAtZeroButtonClicked: function()
-    {
-        var toggled = !this.toggleStartAtZeroButton.toggled
-        this._glueParentButton.disabled = toggled;
-        this.toggleStartAtZeroButton.toggled = toggled;
-        this._calculator = toggled ? new WebInspector.TimelineStartAtZeroCalculator() : new WebInspector.TimelineCalculator();
-        this._presentationModel.setGlueRecords(this._glueParentButton.toggled && !this.toggleStartAtZeroButton.toggled);
-        this._repopulateRecords();
-        this._overviewPane.setStartAtZero(toggled);
     },
 
     _repopulateRecords: function()
@@ -446,17 +441,12 @@ WebInspector.TimelinePanel.prototype = {
         this._scheduleRefresh(false);
     },
 
-    get _startAtZero()
-    {
-        return this.toggleStartAtZeroButton.toggled;
-    },
-
     _onTimelineEventRecorded: function(event)
     {
         this._innerAddRecordToTimeline(event.data, this._rootRecord());
         this._scheduleRefresh(false);
 
-        if (this._memoryStatistics && event.data["counters"])
+        if (event.data["counters"])
             this._memoryStatistics.addTimlineEvent(event);
     },
 
@@ -465,8 +455,15 @@ WebInspector.TimelinePanel.prototype = {
         var formattedRecord = this._presentationModel.addRecord(record, parentRecord);
         ++this._allRecordsCount;
         var recordTypes = WebInspector.TimelineModel.RecordType;
-        if (record.type === recordTypes.MarkDOMContent || record.type === recordTypes.MarkLoad || record.type === recordTypes.TimeStamp)
-            this._timeStampRecords.push(formattedRecord);
+        var timeStampRecords = this._timeStampRecords;
+        function addTimestampRecords(record)
+        {
+            if (record.type === recordTypes.MarkDOMContent || record.type === recordTypes.MarkLoad ||
+                record.type === recordTypes.TimeStamp || record.type === recordTypes.BeginFrame) {
+                timeStampRecords.push(record);
+            }
+        }
+        WebInspector.TimelinePanel.forAllRecords([ formattedRecord ], addTimestampRecords);
     },
 
     sidebarResized: function(event)
@@ -477,9 +474,7 @@ WebInspector.TimelinePanel.prototype = {
         this._overviewPane.sidebarResized(width);
         // Min width = <number of buttons on the left> * 31
         this.statusBarFilters.style.left = Math.max((this.statusBarItems.length + 2) * 31, width) + "px";
-
-        if (this._memoryStatistics)
-            this._memoryStatistics.setSidebarWidth(width);
+        this._memoryStatistics.setSidebarWidth(width);
     },
 
     onResize: function()
@@ -508,8 +503,7 @@ WebInspector.TimelinePanel.prototype = {
         this._adjustScrollPosition(0);
         this._closeRecordDetails();
         this._allRecordsCount = 0;
-        if (this._memoryStatistics)
-            this._memoryStatistics.reset();
+        this._memoryStatistics.reset();
     },
 
     elementsToRestoreScrollPositionsFor: function()
@@ -563,42 +557,35 @@ WebInspector.TimelinePanel.prototype = {
             delete this._refreshTimeout;
         }
 
-        this._overviewPane.update(this._rootRecord().children, this._showShortEvents);
+        this._overviewPane.update(this._showShortEvents);
 
         if (!this._boundariesAreValid)
-            this._updateBoundaries();
+            this._calculator.setWindow(this._overviewPane.windowStartTime(), this._overviewPane.windowEndTime());
+
         var recordsInWindowCount = this._refreshRecords(!this._boundariesAreValid);
         this._updateRecordsCounter(recordsInWindowCount);
         if(!this._boundariesAreValid)
             this._updateEventDividers();
-        if (this._memoryStatistics && this._memoryStatistics.visible())
+        if (this._memoryStatistics.visible())
             this._memoryStatistics.refresh();
         this._boundariesAreValid = true;
     },
 
-    _updateBoundaries: function()
-    {
-        this._calculator.reset();
-        this._calculator.windowLeft = this._overviewPane.windowLeft();
-        this._calculator.windowRight = this._overviewPane.windowRight();
-
-        for (var i = 0; i < this._rootRecord().children.length; ++i)
-            this._calculator.updateBoundaries(this._rootRecord().children[i]);
-
-        this._calculator.calculateWindow();
-    },
-
     revealRecordAt: function(time)
     {
-        if (this._startAtZero)
+        if (this._verticalOverview)
             return;
         var recordsInWindow = this._presentationModel.filteredRecords();
         var recordToReveal;
         for (var i = 0; i < recordsInWindow.length; ++i) {
-            if (recordsInWindow[i].containsTime(time)) {
-                recordToReveal = recordsInWindow[i];
+            var record = recordsInWindow[i];
+            if (record.containsTime(time)) {
+                recordToReveal = record;
                 break;
             }
+            // If there is no record containing the time than use the latest one before that time.
+            if (!recordToReveal || record.endTime < time && recordToReveal.endTime < record.endTime)
+                recordToReveal = record;
         }
 
         // The record ends before the window left bound so scroll to the top.
@@ -698,7 +685,7 @@ WebInspector.TimelinePanel.prototype = {
 
     get timelinePaddingLeft()
     {
-        return this._calculator.windowLeft === 0 ? this._expandOffset : 0;
+        return !this._overviewPane.windowLeft() ? this._expandOffset : 0;
     },
 
     _adjustScrollPosition: function(totalHeight)
@@ -760,12 +747,11 @@ WebInspector.TimelinePanel.prototype.__proto__ = WebInspector.Panel.prototype;
 
 /**
  * @constructor
+ * @param {WebInspector.TimelinePresentationModel} presentationModel
  */
-WebInspector.TimelineCalculator = function()
+WebInspector.TimelineCalculator = function(presentationModel)
 {
-    this.reset();
-    this.windowLeft = 0.0;
-    this.windowRight = 1.0;
+    this._presentationModel = presentationModel;
 }
 
 WebInspector.TimelineCalculator.prototype = {
@@ -794,105 +780,18 @@ WebInspector.TimelineCalculator.prototype = {
         return {left: left, width: width, widthWithChildren: widthWithChildren, cpuWidth: cpuWidth};
     },
 
-    calculateWindow: function()
+    setWindow: function(minimumBoundary, maximumBoundary)
     {
-        this.minimumBoundary = this._absoluteMinimumBoundary + this.windowLeft * (this._absoluteMaximumBoundary - this._absoluteMinimumBoundary);
-        this.maximumBoundary = this._absoluteMinimumBoundary + this.windowRight * (this._absoluteMaximumBoundary - this._absoluteMinimumBoundary);
+        this.minimumBoundary = minimumBoundary;
+        this.maximumBoundary = maximumBoundary;
         this.boundarySpan = this.maximumBoundary - this.minimumBoundary;
     },
 
-    reset: function()
+    formatTime: function(value)
     {
-        this._absoluteMinimumBoundary = -1;
-        this._absoluteMaximumBoundary = -1;
-    },
-
-    updateBoundaries: function(record)
-    {
-        var lowerBound = record.startTime;
-        if (this._absoluteMinimumBoundary === -1 || lowerBound < this._absoluteMinimumBoundary)
-            this._absoluteMinimumBoundary = lowerBound;
-
-        const minimumTimeFrame = 0.1;
-        const minimumDeltaForZeroSizeEvents = 0.01;
-        var upperBound = Math.max(record.lastChildEndTime + minimumDeltaForZeroSizeEvents, lowerBound + minimumTimeFrame);
-        if (this._absoluteMaximumBoundary === -1 || upperBound > this._absoluteMaximumBoundary)
-            this._absoluteMaximumBoundary = upperBound;
-    },
-
-    formatValue: function(value)
-    {
-        return Number.secondsToString(value + this.minimumBoundary - this._absoluteMinimumBoundary);
+        return Number.secondsToString(value + this.minimumBoundary - this._presentationModel.minimumRecordTime());
     }
 }
-
-/**
- * @constructor
- * @extends WebInspector.TimelineCalculator
- */
-WebInspector.TimelineStartAtZeroCalculator = function()
-{
-    this.reset();
-    this.windowLeft = 0.0;
-    this.windowRight = 1.0;
-}
-
-WebInspector.TimelineStartAtZeroCalculator.prototype = {
-    computeBarGraphPercentages: function(record)
-    {
-        var scale = 100 / this.maximumBoundary;
-        return {
-            start: record._initiatorOffset * scale,
-            end: (record._initiatorOffset + record.endTime - record.startTime) * scale,
-            endWithChildren: (record._initiatorOffset + record.lastChildEndTime - record.startTime) * scale
-        };
-    },
-
-    computeBarGraphWindowPosition: function(record, clientWidth)
-    {
-        const minWidth = 5;
-        const borderWidth = 4;
-        var workingArea = clientWidth - minWidth - borderWidth;
-        var percentages = this.computeBarGraphPercentages(record);
-        var left = percentages.start / 100 * workingArea;
-        var width = (percentages.end - percentages.start) / 100 * workingArea + minWidth;
-        var widthWithChildren =  (percentages.endWithChildren - percentages.start) / 100 * workingArea;
-        if (percentages.endWithChildren > percentages.end)
-            widthWithChildren += borderWidth + minWidth;
-
-        return {left: left, width: width, widthWithChildren: widthWithChildren};
-    },
-
-    calculateWindow: function()
-    {
-        this.minimumBoundary = this._absoluteMinimumBoundary;
-        this.maximumBoundary = this._absoluteMaximumBoundary * 1.05;
-        this.boundarySpan = this.maximumBoundary >= 0 ? this.maximumBoundary : 0;
-    },
-
-    reset: function()
-    {
-        this._absoluteMinimumBoundary = -1;
-        this._absoluteMaximumBoundary = -1;
-    },
-
-    updateBoundaries: function(record)
-    {
-        var lowerBound = record.startTime;
-        if (this._absoluteMinimumBoundary === -1 || lowerBound < this._absoluteMinimumBoundary)
-            this._absoluteMinimumBoundary = lowerBound;
-
-        const minimumTimeFrame = 0.001;
-        var upperBound = Math.max(record.endTime - record.startTime, minimumTimeFrame);
-        if (this._absoluteMaximumBoundary === -1 || upperBound > this._absoluteMaximumBoundary)
-            this._absoluteMaximumBoundary = upperBound;
-    },
-
-    formatValue: function(value)
-    {
-        return Number.secondsToString(value, true);
-    }
-};
 
 /**
  * @constructor
@@ -1089,7 +988,7 @@ WebInspector.TimelineCategoryFilter.prototype = {
      */
     accept: function(record)
     {
-        return !record.category.hidden;
+        return !record.category.hidden && record.type !== WebInspector.TimelineModel.RecordType.BeginFrame;
     }
 }
 
