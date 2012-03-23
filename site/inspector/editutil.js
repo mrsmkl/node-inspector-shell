@@ -7,9 +7,9 @@ boxForAnchorAtStart(sel, ran);
 
 */
 
-// var util = require("../lib/utils");
+var util = require("../lib/utils");
 
-// var system = new util.Handler("../lib/local-complete.js");
+var system = new util.Handler("../lib/local-complete.js");
 
 function f(name) { return function (x) { return x[name]; }; }
 
@@ -17,7 +17,10 @@ function getSourceIds() {
     // Need to get file ids
     // Get all sources...
     var ids = [];
-    WebInspector.panels.scripts._presentationModel._rawSourceCodes.forEach(function (el) { ids = ids.concat(el._scripts); });
+    // WebInspector.panels.scripts._presentationModel._rawSourceCodes.forEach(function (el) { ids = ids.concat(el._scripts); });
+    var scripts = WebInspector.debuggerModel.scripts;
+    for (var i  in scripts) ids.push(scripts[i]);
+    // forEach(function (el) { ids = ids.concat(el._scripts); });
     return ids;
 }
 
