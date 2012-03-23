@@ -329,7 +329,31 @@ WebInspector.Events = {
 WebInspector.loaded = function()
 {
     InspectorBackend.loadFromJSONIfNeeded();
-    if ("nodeDebug" in WebInspector.queryParamsObject) {
+    if (chrome.debugger) {
+        var tab = WebInspector.queryParamsObject.tab;
+        var id = {tabId:parseInt(tab)};
+        console.log("Starting debugger");
+        chrome.debugger.attach(id, "1.0", function () {
+            console.log("Debugger started");
+            InspectorFrontendHost.sendMessageToBackend = function (msg) {
+                console.log("Sending message:" + msg);
+                var obj = JSON.parse(msg);
+                chrome.debugger.sendCommand(id, obj.method, obj.params || {}, function (x) {
+                    console.log("Got reply: ");
+                    console.log(x);
+                    InspectorBackend.dispatch(JSON.stringify({id:obj.id, result:x}));
+                });
+            };
+            chrome.debugger.onEvent.addListener(function (id, method, params) {
+                var msg = JSON.stringify({method: method, params: params});
+                console.log("Got message:" + msg);
+                InspectorBackend.dispatch(msg);
+            });
+            WebInspector.doLoadedDone();
+        });
+        return;
+    }
+    else if ("nodeDebug" in WebInspector.queryParamsObject) {
         var host = WebInspector.queryParamsObject.host;
         var port = WebInspector.queryParamsObject.port;
         var s = io.connect(host);
@@ -352,7 +376,7 @@ WebInspector.loaded = function()
         });
         return;
     }
-    if ("page" in WebInspector.queryParamsObject) {
+    else if ("page" in WebInspector.queryParamsObject) {
         var page = WebInspector.queryParamsObject.page;
         var host = "host" in WebInspector.queryParamsObject ? WebInspector.queryParamsObject.host : window.location.host;
         WebInspector.socket = new WebSocket("ws://" + host + "/devtools/page/" + page);

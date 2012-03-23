@@ -7,7 +7,9 @@ boxForAnchorAtStart(sel, ran);
 
 */
 
-var util = require("../lib/utils");
+// var util = require("../lib/utils");
+
+// var system = new util.Handler("../lib/local-complete.js");
 
 function f(name) { return function (x) { return x[name]; }; }
 
@@ -28,24 +30,6 @@ function getSources(lst, cont) {
     }
     lst.forEach(function (sc) { DebuggerAgent.getScriptSource(sc.scriptId, function (err,str) { loaded(err,str,sc); }); });
 }
-
-var system = new util.Handler("../lib/local-complete.js");
-
-/*
-function call_server(sname, obj, cont) {
-    var str = encodeURIComponent(JSON.stringify(obj));
-    var url = "http://192.168.0.7:3000/" + sname + "?command=" + str;
-    var http_request = new XMLHttpRequest();
-	http_request.open("GET", url, true );
-	http_request.onreadystatechange = function () {
-		if (http_request.readyState == 4 && http_request.status == 200) {
-			 if (cont) cont(JSON.parse(http_request.responseText));
-		}
-	};
-    http_request.overrideMimeType("application/json");
-	http_request.send(null);
-}
-*/
 
 var initialized = false;
 
